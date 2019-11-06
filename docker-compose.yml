@@ -1,0 +1,66 @@
+version: '3.2'
+
+services:
+  db:
+    image: mariadb
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    restart: always
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+  app:
+    image: nextcloud:fpm-alpine
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html
+    environment:
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      - db
+
+  web:
+    build: ./web
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html:ro
+    environment:
+      VIRTUAL_HOST: ${NEXTCLOUD_DOMAIN}
+      LETSENCRYPT_HOST: ${NEXTCLOUD_DOMAIN}
+    depends_on:
+      - app
+    networks:
+      - nginx-proxy
+      - default
+
+  collabora:
+    image: collabora/code
+    networks:
+      - nginx-proxy
+    cap_add:
+      - MKNOD
+    expose:
+      - 9980
+    environment:
+      VIRTUAL_HOST: ${COLLABORA_DOMAIN}
+      LETSENCRYPT_HOST: ${COLLABORA_DOMAIN}
+      VIRTUAL_PORT: 9980
+      domain: ${NEXTCLOUD_DOT_ESCAPE_DOMAIN}
+      extra_params: --o:ssl.enable=false --o:ssl.termination=true
+    restart: always
+
+volumes:
+  db:
+  nextcloud:
+
+networks:
+  nginx-proxy:
+    external: 
+      name: nginx-proxy
